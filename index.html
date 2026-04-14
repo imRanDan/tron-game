@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tron Light Cycles</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="hud">
+        <div>
+          <p class="eyebrow">Arcade Duel</p>
+          <h1>Tron Light Cycles</h1>
+          <p class="subtitle">
+            Outmaneuver your rival, seal off the arena, and survive longer than
+            the other rider.
+          </p>
+        </div>
+        <div class="scoreboard">
+          <div class="score-card cyan">
+            <span>Blue Rider</span>
+            <strong id="score-left">0</strong>
+            <small id="left-label">WASD</small>
+          </div>
+          <div class="score-card amber">
+            <span>Gold Rider</span>
+            <strong id="score-right">0</strong>
+            <small id="right-label">AI Pilot</small>
+          </div>
+        </div>
+      </section>
+
+      <section class="game-shell">
+        <canvas
+          id="game"
+          width="960"
+          height="640"
+          aria-label="Tron light cycle arena"
+        ></canvas>
+
+        <div class="overlay" id="overlay">
+          <div class="overlay-panel menu-panel" id="menu-panel">
+            <p class="overlay-kicker">Choose a Mode</p>
+            <h2>Neon grid is waiting</h2>
+            <p class="overlay-copy">
+              Pick solo or couch multiplayer, then hit the arena.
+            </p>
+            <div class="menu-actions">
+              <button id="single-player-button" type="button">Single Player</button>
+              <button id="multiplayer-button" class="secondary" type="button">
+                Multiplayer
+              </button>
+            </div>
+            <div class="instructions-card" id="instructions-card">
+              <p class="instructions-label">Mode Briefing</p>
+              <h3 id="instructions-title">Single Player</h3>
+              <p id="instructions-text">
+                You are the Blue Rider. Use WASD to steer and trap the gold AI.
+                First to 5 rounds wins the match.
+              </p>
+            </div>
+          </div>
+
+          <div class="overlay-panel status-panel hidden" id="status-panel">
+            <p class="overlay-kicker" id="status-kicker">Round complete</p>
+            <h2 id="overlay-title">Blue Rider wins the round</h2>
+            <p class="overlay-copy" id="overlay-message">
+              Press Space or use the button below to launch the next duel.
+            </p>
+            <button id="start-button" type="button">Next Round</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="./src/game.js"></script>
+  </body>
+</html>
