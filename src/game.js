@@ -16,6 +16,15 @@ const scoreLeft = document.getElementById("score-left");
 const scoreRight = document.getElementById("score-right");
 const leftLabel = document.getElementById("left-label");
 const rightLabel = document.getElementById("right-label");
+const gameControls = document.getElementById("game-controls");
+const pauseButton = document.getElementById("pause-button");
+const menuButton = document.getElementById("menu-button");
+const pausePanel = document.getElementById("pause-panel");
+const resumeButton = document.getElementById("resume-button");
+const pauseMenuButton = document.getElementById("pause-menu-button");
+const difficultyControl = document.getElementById("difficulty-control");
+const difficultySlider = document.getElementById("difficulty-slider");
+const difficultyValue = document.getElementById("difficulty-value");
 
 const cellSize = 16;
 const columns = canvas.width / cellSize;
@@ -54,7 +63,7 @@ const modeInstructions = {
   single: {
     title: "Single Player",
     text:
-      "You are the Blue Rider. Use WASD to steer and trap the gold AI pilot. First to 5 rounds wins the match.",
+      "You are the Blue Rider. Use WASD to steer and trap the gold AI pilot. Set AI difficulty from 0 (easiest) to 9 (hardest). First to 5 rounds wins the match.",
   },
   multiplayer: {
     title: "Multiplayer",
@@ -67,6 +76,9 @@ const state = {
   screen: "menu",
   mode: "single",
   running: false,
+  paused: false,
+  difficulty: 5,
+  aiTick: 0,
   scores: {
     left: 0,
     right: 0,
@@ -105,6 +117,21 @@ function updateInstructions() {
 function updateHud() {
   leftLabel.textContent = "WASD";
   rightLabel.textContent = state.mode === "single" ? "AI Pilot" : "Arrows";
+}
+
+function updateDifficultyDisplay() {
+  difficultySlider.value = String(state.difficulty);
+  difficultyValue.textContent = String(state.difficulty);
+  difficultyControl.classList.toggle("is-disabled", state.mode !== "single");
+}
+
+function setGameControlsVisible(visible) {
+  gameControls.classList.toggle("hidden", !visible);
+}
+
+function setPaused(paused) {
+  state.paused = paused;
+  pauseButton.textContent = paused ? "Resume" : "Pause";
 }
 
 function resetScores() {
@@ -148,18 +175,57 @@ function updateScores() {
 function showMenu() {
   state.screen = "menu";
   state.running = false;
+  setPaused(false);
+  setGameControlsVisible(false);
   overlay.classList.remove("hidden");
   menuPanel.classList.remove("hidden");
   statusPanel.classList.add("hidden");
+  pausePanel.classList.add("hidden");
   updateInstructions();
   updateHud();
+  updateDifficultyDisplay();
   render();
+}
+
+function showPause() {
+  if (state.screen !== "game" || !state.running) {
+    return;
+  }
+
+  state.screen = "pause";
+  setPaused(true);
+  setGameControlsVisible(false);
+  overlay.classList.remove("hidden");
+  menuPanel.classList.add("hidden");
+  statusPanel.classList.add("hidden");
+  pausePanel.classList.remove("hidden");
+}
+
+function resumeGame() {
+  if (state.screen !== "pause") {
+    return;
+  }
+
+  state.screen = "game";
+  setPaused(false);
+  setGameControlsVisible(true);
+  hideOverlay();
+  state.lastTick = 0;
+  requestAnimationFrame(frame);
+}
+
+function returnToMenu() {
+  setPaused(false);
+  showMenu();
 }
 
 function showStatus(kicker, title, message, buttonText = "Next Round") {
   state.screen = "status";
+  setPaused(false);
+  setGameControlsVisible(false);
   overlay.classList.remove("hidden");
   menuPanel.classList.add("hidden");
+  pausePanel.classList.add("hidden");
   statusPanel.classList.remove("hidden");
   statusKicker.textContent = kicker;
   overlayTitle.textContent = title;
@@ -175,8 +241,12 @@ function beginRound() {
   resetRound();
   state.screen = "game";
   state.running = true;
+  state.aiTick = 0;
   state.lastTick = 0;
+  setPaused(false);
+  setGameControlsVisible(true);
   hideOverlay();
+  pausePanel.classList.add("hidden");
   requestAnimationFrame(frame);
 }
 
@@ -185,6 +255,7 @@ function startMode(mode) {
   state.aiEnabled = mode === "single";
   resetScores();
   updateHud();
+  updateDifficultyDisplay();
   beginRound();
 }
 
@@ -235,7 +306,7 @@ function distanceToObstacle(player, direction) {
   }
 }
 
-function scoreDirection(player, direction, target) {
+function scoreDirection(player, direction, target, difficulty = state.difficulty) {
   if (oppositeDirection[player.direction] === direction) {
     return Number.NEGATIVE_INFINITY;
   }
@@ -254,8 +325,26 @@ function scoreDirection(player, direction, target) {
   const edgePenalty =
     Math.min(nextX, columns - 1 - nextX, nextY, rows - 1 - nextY) <= 1 ? 1.5 : 0;
   const turnBonus = direction !== player.direction ? 0.35 : 0;
+  const clearanceWeight = 2 + difficulty * 0.35;
+  const pursuitWeight = 0.25 + difficulty * 0.05;
 
-  return clearance * 3 - distanceFromTarget * 0.4 - edgePenalty + turnBonus;
+  return (
+    clearance * clearanceWeight -
+    distanceFromTarget * pursuitWeight -
+    edgePenalty +
+    turnBonus
+  );
+}
+
+function getSafeDirections(player) {
+  return orderedDirections.filter((direction) => {
+    if (oppositeDirection[player.direction] === direction) {
+      return false;
+    }
+
+    const vector = directionVectors[direction];
+    return isSafeCell(player.x + vector.x, player.y + vector.y);
+  });
 }
 
 function updateAi() {
@@ -269,11 +358,52 @@ function updateAi() {
     return;
   }
 
-  let bestDirection = aiPlayer.direction;
+  state.aiTick += 1;
+  const reactionDelay = Math.max(1, Math.ceil((9 - state.difficulty) / 2));
+  if (state.aiTick % reactionDelay !== 0) {
+    return;
+  }
+
+  const mistakeChance = ((9 - state.difficulty) / 9) * 0.62;
+  const safeDirections = getSafeDirections(aiPlayer);
+
+  if (safeDirections.length > 0 && Math.random() < mistakeChance) {
+    aiPlayer.nextDirection =
+      safeDirections[Math.floor(Math.random() * safeDirections.length)];
+    return;
+  }
+
+  const rankedDirections = orderedDirections
+    .map((direction) => ({
+      direction,
+      score: scoreDirection(aiPlayer, direction, target),
+    }))
+    .filter((entry) => entry.score > Number.NEGATIVE_INFINITY)
+    .sort((left, right) => right.score - left.score);
+
+  if (rankedDirections.length === 0) {
+    return;
+  }
+
+  const hesitationChance = ((9 - state.difficulty) / 9) * 0.45;
+  if (rankedDirections.length > 1 && Math.random() < hesitationChance) {
+    const weakerPick = rankedDirections[Math.floor(Math.random() * rankedDirections.length)];
+    aiPlayer.nextDirection = weakerPick.direction;
+    return;
+  }
+
+  const scoreNoise = ((9 - state.difficulty) / 9) * 4;
+  let bestDirection = rankedDirections[0].direction;
   let bestScore = Number.NEGATIVE_INFINITY;
 
   for (const direction of orderedDirections) {
-    const directionScore = scoreDirection(aiPlayer, direction, target);
+    let directionScore = scoreDirection(aiPlayer, direction, target);
+    if (directionScore === Number.NEGATIVE_INFINITY) {
+      continue;
+    }
+
+    directionScore += (Math.random() * 2 - 1) * scoreNoise;
+
     if (directionScore > bestScore) {
       bestScore = directionScore;
       bestDirection = direction;
@@ -471,7 +601,11 @@ function render() {
 function frame(timestamp) {
   render();
 
-  if (!state.running) {
+  if (!state.running || state.paused) {
+    if (state.running && state.paused) {
+      requestAnimationFrame(frame);
+    }
+
     return;
   }
 
@@ -490,6 +624,18 @@ function frame(timestamp) {
 }
 
 window.addEventListener("keydown", (event) => {
+  if (event.code === "Escape") {
+    event.preventDefault();
+
+    if (state.screen === "game") {
+      showPause();
+    } else if (state.screen === "pause") {
+      resumeGame();
+    }
+
+    return;
+  }
+
   if (event.code === "Space") {
     event.preventDefault();
 
@@ -505,7 +651,7 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
-  if (state.screen !== "game") {
+  if (state.screen !== "game" || state.paused) {
     return;
   }
 
@@ -527,8 +673,27 @@ multiplayerButton.addEventListener("click", () => {
 
 startButton.addEventListener("click", startNextRound);
 
+pauseButton.addEventListener("click", () => {
+  if (state.screen === "pause") {
+    resumeGame();
+    return;
+  }
+
+  showPause();
+});
+
+menuButton.addEventListener("click", returnToMenu);
+resumeButton.addEventListener("click", resumeGame);
+pauseMenuButton.addEventListener("click", returnToMenu);
+
+difficultySlider.addEventListener("input", () => {
+  state.difficulty = Number(difficultySlider.value);
+  difficultyValue.textContent = String(state.difficulty);
+});
+
 updateInstructions();
 updateScores();
 updateHud();
+updateDifficultyDisplay();
 resetRound();
 showMenu();

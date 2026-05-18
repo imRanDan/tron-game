@@ -32,6 +32,15 @@
       </section>
 
       <section class="game-shell">
+        <div class="game-controls hidden" id="game-controls">
+          <button id="pause-button" class="control-button" type="button">
+            Pause
+          </button>
+          <button id="menu-button" class="control-button secondary" type="button">
+            Main Menu
+          </button>
+        </div>
+
         <canvas
           id="game"
           width="960"
@@ -52,6 +61,24 @@
                 Multiplayer
               </button>
             </div>
+            <div class="difficulty-control" id="difficulty-control">
+              <label for="difficulty-slider">
+                AI Difficulty
+                <span id="difficulty-value">5</span>
+              </label>
+              <input
+                id="difficulty-slider"
+                type="range"
+                min="0"
+                max="9"
+                step="1"
+                value="5"
+              />
+              <div class="difficulty-scale" aria-hidden="true">
+                <span>0 · Easiest</span>
+                <span>9 · Hardest</span>
+              </div>
+            </div>
             <div class="instructions-card" id="instructions-card">
               <p class="instructions-label">Mode Briefing</p>
               <h3 id="instructions-title">Single Player</h3>
@@ -59,6 +86,20 @@
                 You are the Blue Rider. Use WASD to steer and trap the gold AI.
                 First to 5 rounds wins the match.
               </p>
+            </div>
+          </div>
+
+          <div class="overlay-panel pause-panel hidden" id="pause-panel">
+            <p class="overlay-kicker">Paused</p>
+            <h2>Grid on hold</h2>
+            <p class="overlay-copy">
+              Resume the duel or return to the main menu. You can also press Escape.
+            </p>
+            <div class="menu-actions">
+              <button id="resume-button" type="button">Resume</button>
+              <button id="pause-menu-button" class="secondary" type="button">
+                Main Menu
+              </button>
             </div>
           </div>
 
